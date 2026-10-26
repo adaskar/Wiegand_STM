@@ -383,6 +383,7 @@ bool wiegand_port_transmit_hex(uint16_t bit_count, const char *hex_str)
 {
 	uint8_t bits[WIEGAND_MAX_BITS / 8U] = {0};
 	uint16_t total_nibbles;
+	uint16_t pad_nibbles;
 	size_t hex_len;
 	uint16_t i;
 
@@ -398,11 +399,27 @@ bool wiegand_port_transmit_hex(uint16_t bit_count, const char *hex_str)
 
 	total_nibbles = (bit_count + 3U) / 4U;
 
-	for (i = 0; i < total_nibbles && i < hex_len; i++) {
-		int val = hex_char_to_val(hex_str[i]);
+	/* Strip excess leading zeros if hex string is longer than required nibbles */
+	while (hex_len > total_nibbles && *hex_str == '0') {
+		hex_str++;
+		hex_len--;
+	}
 
-		if (val < 0)
-			return false;
+	/* Right-align if fewer nibbles provided than total_nibbles */
+	pad_nibbles = (hex_len < total_nibbles) ? (total_nibbles - (uint16_t)hex_len) : 0U;
+
+	for (i = 0; i < total_nibbles; i++) {
+		int val = 0;
+
+		if (i >= pad_nibbles) {
+			uint16_t src_idx = i - pad_nibbles;
+
+			if (src_idx < hex_len) {
+				val = hex_char_to_val(hex_str[src_idx]);
+				if (val < 0)
+					return false;
+			}
+		}
 
 		if ((i & 1U) == 0U)
 			bits[i / 2U] |= (uint8_t)(val << 4);

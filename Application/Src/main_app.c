@@ -14,9 +14,50 @@
 #include <ctype.h>
 
 #define CMD_BUFFER_SIZE		128U
+#define UART_RX_BUF_SIZE	256U
 
 static char s_cmd_buf[CMD_BUFFER_SIZE];
 static uint16_t s_cmd_len;
+
+/* Interrupt-driven ring buffer for reliable UART command reception */
+static volatile uint8_t s_rx_buf[UART_RX_BUF_SIZE];
+static volatile uint16_t s_rx_head;
+static volatile uint16_t s_rx_tail;
+
+/**
+ * USART3_IRQHandler - UART3 RX interrupt handler (overrides weak startup symbol).
+ * Captures all incoming characters into ring buffer without overrun drops.
+ */
+void USART3_IRQHandler(void)
+{
+	USART_TypeDef *uart = USART3;
+	uint32_t isr = uart->ISR;
+
+	/* Clear overrun flag if set */
+	if (isr & USART_ISR_ORE)
+		uart->ICR = USART_ICR_ORECF;
+
+	/* Check for received byte */
+	if (isr & (USART_ISR_RXNE_RXFNE)) {
+		uint8_t ch = (uint8_t)(uart->RDR & 0xFFU);
+		uint16_t next = (s_rx_head + 1U) % UART_RX_BUF_SIZE;
+
+		if (next != s_rx_tail) {
+			s_rx_buf[s_rx_head] = ch;
+			s_rx_head = next;
+		}
+	}
+}
+
+static bool uart_getchar(uint8_t *ch)
+{
+	if (s_rx_head == s_rx_tail)
+		return false;
+
+	*ch = s_rx_buf[s_rx_tail];
+	s_rx_tail = (s_rx_tail + 1U) % UART_RX_BUF_SIZE;
+	return true;
+}
 
 /* Wiegand Event Callbacks */
 
@@ -118,7 +159,7 @@ static void print_help(void)
 	printf("  mode tx                 : Set port to TRANSMITTER mode (Output OD, Pull-Up)\r\n");
 	printf("  tx26 <fac> <card>       : Transmit 26-bit card (e.g. 'tx26 42 1337')\r\n");
 	printf("  tx34 <fac> <card>       : Transmit 34-bit card (e.g. 'tx34 100 54321')\r\n");
-	printf("  txhex <bits> <hex>      : Transmit arbitrary raw hex bits (e.g. 'txhex 26 0x02A00A72')\r\n");
+	printf("  txhex <bits> <hex>      : Transmit arbitrary raw hex bits (e.g. 'txhex 32 0x21222324')\r\n");
 	printf("  stats                   : Display receiver statistics table\r\n");
 	printf("  reset                   : Reset receiver state machine and statistics\r\n");
 	printf("  loopback                : Transmit test card (Facility: 42, Card: 1337)\r\n");
@@ -269,7 +310,7 @@ static void execute_command(char *line)
 		uint16_t bit_count;
 
 		if (!bits_str || !hex_str) {
-			printf("Usage: txhex <bit_count> <hex_string>\r\nExample: txhex 26 0x02A00A72\r\n");
+			printf("Usage: txhex <bit_count> <hex_string>\r\nExample: txhex 32 0x21222324\r\n");
 			return;
 		}
 
@@ -324,6 +365,12 @@ void main_app(void)
 		Error_Handler();
 	}
 
+	/* Enable USART3 RX interrupt and NVIC for non-dropping reception */
+	__HAL_UART_ENABLE_IT(&hcom_uart[COM1], UART_IT_RXNE);
+	__HAL_UART_ENABLE_IT(&hcom_uart[COM1], UART_IT_ERR);
+	HAL_NVIC_SetPriority(USART3_IRQn, 2, 0);
+	HAL_NVIC_EnableIRQ(USART3_IRQn);
+
 	print_banner();
 
 	last_heartbeat = HAL_GetTick();
@@ -333,7 +380,7 @@ void main_app(void)
 
 		wiegand_port_process();
 
-		if (HAL_UART_Receive(&hcom_uart[COM1], &rx_byte, 1, 0) == HAL_OK) {
+		while (uart_getchar(&rx_byte)) {
 			if (rx_byte == '\r' || rx_byte == '\n') {
 				printf("\r\n");
 				s_cmd_buf[s_cmd_len] = '\0';
@@ -356,12 +403,6 @@ void main_app(void)
 					fflush(stdout);
 				}
 			}
-		} else {
-			__HAL_UART_CLEAR_OREFLAG(&hcom_uart[COM1]);
-			__HAL_UART_CLEAR_FLAG(&hcom_uart[COM1],
-					      UART_CLEAR_NEF | UART_CLEAR_FEF | UART_CLEAR_PEF);
-			hcom_uart[COM1].ErrorCode = HAL_UART_ERROR_NONE;
-			hcom_uart[COM1].RxState = HAL_UART_STATE_READY;
 		}
 
 		now = HAL_GetTick();
