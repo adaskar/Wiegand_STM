@@ -1,6 +1,7 @@
 #include "stm32h5xx_hal.h"
 #include "stm32h5xx_nucleo.h"
 #include <stdio.h>
+#include <main.h>
 
 void main_app(void)
 {

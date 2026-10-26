@@ -70,6 +70,10 @@ void Error_Handler(void);
 #define TRACE_D2_GPIO_Port GPIOE
 #define TRACE_D3_Pin GPIO_PIN_6
 #define TRACE_D3_GPIO_Port GPIOE
+#define WIE_D0_Pin GPIO_PIN_0
+#define WIE_D0_GPIO_Port GPIOF
+#define WIE_D1_Pin GPIO_PIN_1
+#define WIE_D1_GPIO_Port GPIOF
 #define STLK_MCO_Pin GPIO_PIN_0
 #define STLK_MCO_GPIO_Port GPIOH
 #define RMII_MDC_Pin GPIO_PIN_1
@@ -106,6 +110,8 @@ void Error_Handler(void);
 #define SWCLK_GPIO_Port GPIOA
 #define T_JTDI_Pin GPIO_PIN_15
 #define T_JTDI_GPIO_Port GPIOA
+#define MLED_GREEN_Pin GPIO_PIN_3
+#define MLED_GREEN_GPIO_Port GPIOD
 #define RMII_TXT_EN_Pin GPIO_PIN_11
 #define RMII_TXT_EN_GPIO_Port GPIOG
 #define RMI_TXD0_Pin GPIO_PIN_13
