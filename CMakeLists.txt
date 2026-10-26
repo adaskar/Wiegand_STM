@@ -46,11 +46,18 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
     Application/Src/main_app.c
+    Application/Src/wiegand.c
+    Application/Src/wiegand_port_stm32.c
 )
 
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined include paths
+    Application/Inc
+)
+
+target_include_directories(stm32cubemx INTERFACE
+    ${CMAKE_CURRENT_SOURCE_DIR}/Application/Inc
 )
 
 # Add project symbols (macros)
